@@ -649,6 +649,17 @@ static int parse_read_action(char *action, struct uftrace_trigger *tr)
 	return 0;
 }
 
+static int parse_read2_action(char *action, struct uftrace_trigger *tr)
+{
+	parse_read_action(action + 1, tr);
+
+	/* set READ2 flag only if valid type set */
+	if (tr->read)
+		tr->flags |= TRIGGER_FL_READ2;
+
+	return 0;
+}
+
 static int parse_color_action(char *action, struct uftrace_trigger *tr)
 {
 	const char *color = action + 6;
@@ -743,6 +754,7 @@ static const struct trigger_action_parser actions[] = {
 	{ "depth=",    parse_depth_action,        TRIGGER_FL_FILTER, },
 	{ "time=",     parse_time_action,         TRIGGER_FL_FILTER, },
 	{ "read=",     parse_read_action, },
+	{ "read2=",    parse_read2_action, },
 	{ "color=",    parse_color_action, },
 	{ "trace",     parse_trace_action, },
 	{ "backtrace", parse_backtrace_action, },
