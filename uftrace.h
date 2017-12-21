@@ -496,6 +496,8 @@ enum uftrace_event_id {
 	EVENT_ID_BUILTIN = 100000U,
 	EVENT_ID_PROC_STATM,
 	EVENT_ID_PAGE_FAULT,
+	EVENT_ID_PROC_STATM2,
+	EVENT_ID_PAGE_FAULT2,
 
 	/* supported perf events */
 	EVENT_ID_PERF		= 200000U,
