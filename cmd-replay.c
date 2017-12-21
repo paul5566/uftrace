@@ -274,6 +274,16 @@ static void print_event(struct ftrace_task_handle *task,
 			pr_color(color, "%s (major=%"PRIu64", minor=%"PRIu64")",
 				 evt_name, page_fault->major, page_fault->minor);
 			return;
+		case EVENT_ID_PROC_STATM2:
+			statm = task->args.data;
+			pr_color(color, "%s (size=%+"PRId64"KB, rss=%+"PRId64"KB, shared=%+"PRId64"KB)",
+				 evt_name, statm->vmsize, statm->vmrss, statm->shared);
+			return;
+		case EVENT_ID_PAGE_FAULT2:
+			page_fault = task->args.data;
+			pr_color(color, "%s (major=%+"PRId64", minor=%+"PRId64")",
+				 evt_name, page_fault->major, page_fault->minor);
+			return;
 		default:
 			pr_color(color, "%s", evt_name);
 			break;
