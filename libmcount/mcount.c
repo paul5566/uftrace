@@ -112,6 +112,9 @@ static void mcount_filter_init(void)
 
 	if (getenv("UFTRACE_DISABLED"))
 		mcount_enabled = false;
+
+	/* TODO: setup pmu if read trigger uses it */
+	prepare_pmu_event(EVENT_ID_PMU_CYCLE);
 }
 
 static void mcount_filter_setup(struct mcount_thread_data *mtdp)
@@ -1259,6 +1262,7 @@ static void mcount_cleanup(void)
 		script_finish();
 
 	unload_symtabs(&symtabs);
+	finish_pmu_event();
 
 	pr_dbg("exit from libmcount\n");
 }
