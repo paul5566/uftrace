@@ -1151,11 +1151,17 @@ char *get_event_name(struct ftrace_file_handle *handle, unsigned evt_id)
 		case EVENT_ID_PAGE_FAULT:
 			xasprintf(&evt_name, "read:page-fault");
 			break;
+		case EVENT_ID_PMU_CYCLE:
+			xasprintf(&evt_name, "read:pmu-cycle");
+			break;
 		case EVENT_ID_PROC_STATM2:
 			xasprintf(&evt_name, "read2:proc/statm");
 			break;
 		case EVENT_ID_PAGE_FAULT2:
 			xasprintf(&evt_name, "read2:page-fault");
+			break;
+		case EVENT_ID_PMU_CYCLE2:
+			xasprintf(&evt_name, "read2:pmu-cycle");
 			break;
 		default:
 			xasprintf(&evt_name, "builtin_event:%u", evt_id);
@@ -1175,9 +1181,13 @@ out:
 int read_task_event(struct ftrace_task_handle *task,
 		    struct uftrace_record *rec)
 {
-	if (rec->addr == EVENT_ID_PROC_STATM) {
-		struct uftrace_proc_statm statm;
+	struct uftrace_proc_statm statm;
+	struct uftrace_page_fault pgfault;
+	struct uftrace_pmu_cycle cycle;
 
+	switch (rec->addr) {
+	case EVENT_ID_PROC_STATM:
+	case EVENT_ID_PROC_STATM2:
 		if (read_task_event_size(task, &statm, sizeof(statm)) < 0)
 			return -1;
 
@@ -1188,10 +1198,10 @@ int read_task_event(struct ftrace_task_handle *task,
 		}
 
 		save_task_event(task, &statm, sizeof(statm));
-	}
-	else if (rec->addr == EVENT_ID_PAGE_FAULT) {
-		struct uftrace_page_fault pgfault;
+		break;
 
+	case EVENT_ID_PAGE_FAULT:
+	case EVENT_ID_PAGE_FAULT2:
 		if (read_task_event_size(task, &pgfault, sizeof(pgfault)) < 0)
 			return -1;
 
@@ -1201,36 +1211,25 @@ int read_task_event(struct ftrace_task_handle *task,
 		}
 
 		save_task_event(task, &pgfault, sizeof(pgfault));
-	}
-	else if (rec->addr == EVENT_ID_PROC_STATM2) {
-		struct uftrace_proc_statm statm;
+		break;
 
-		if (read_task_event_size(task, &statm, sizeof(statm)) < 0)
+	case EVENT_ID_PMU_CYCLE:
+	case EVENT_ID_PMU_CYCLE2:
+		if (read_task_event_size(task, &cycle, sizeof(cycle)) < 0)
 			return -1;
 
 		if (task->h->needs_byte_swap) {
-			statm.vmsize = bswap_64(statm.vmsize);
-			statm.vmrss  = bswap_64(statm.vmrss);
-			statm.shared = bswap_64(statm.shared);
+			cycle.cycles = bswap_64(cycle.cycles);
+			cycle.instrs = bswap_64(cycle.instrs);
 		}
 
-		save_task_event(task, &statm, sizeof(statm));
-	}
-	else if (rec->addr == EVENT_ID_PAGE_FAULT2) {
-		struct uftrace_page_fault pgfault;
+		save_task_event(task, &cycle, sizeof(cycle));
+		break;
 
-		if (read_task_event_size(task, &pgfault, sizeof(pgfault)) < 0)
-			return -1;
-
-		if (task->h->needs_byte_swap) {
-			pgfault.major = bswap_64(pgfault.major);
-			pgfault.minor = bswap_64(pgfault.minor);
-		}
-
-		save_task_event(task, &pgfault, sizeof(pgfault));
-	}
-	else
+	default:
 		pr_err_ns("unknown event has data: %u\n", rec->addr);
+		break;
+	}
 
 	return 0;
 }
