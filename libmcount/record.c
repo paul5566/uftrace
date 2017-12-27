@@ -373,7 +373,7 @@ void save_retval(struct mcount_thread_data *mtdp,
 	*(unsigned *)argbuf = size;
 }
 
-static void save_proc_statm(void *buf)
+static int save_proc_statm(void *buf)
 {
 	FILE *fp;
 	struct uftrace_proc_statm *statm = buf;
@@ -393,6 +393,7 @@ static void save_proc_statm(void *buf)
 	statm->shared *= page_size_in_kb;
 
 	fclose(fp);
+	return 0;
 }
 
 static void diff_proc_statm(void *dst, void *src)
@@ -405,16 +406,18 @@ static void diff_proc_statm(void *dst, void *src)
 	dst_statm->shared -= src_statm->shared;
 }
 
-static void save_page_fault(void *buf)
+static int save_page_fault(void *buf)
 {
 	struct rusage ru;
 	struct uftrace_page_fault *page_fault = buf;
 
 	/* getrusage provides faults info in a single syscall */
-	getrusage(RUSAGE_SELF, &ru);
+	if (getrusage(RUSAGE_SELF, &ru) < 0)
+		return -1;
 
 	page_fault->major = ru.ru_majflt;
 	page_fault->minor = ru.ru_minflt;
+	return 0;
 }
 
 static void diff_page_fault(void *dst, void *src)
@@ -426,9 +429,9 @@ static void diff_page_fault(void *dst, void *src)
 	dst_pgflt->minor -= src_pgflt->minor;
 }
 
-static void save_pmu_cycle(void *buf)
+static int save_pmu_cycle(void *buf)
 {
-	read_pmu_event(EVENT_ID_PMU_CYCLE, buf);
+	return read_pmu_event(EVENT_ID_PMU_CYCLE, buf);
 }
 
 static void diff_pmu_cycle(void *dst, void *src)
@@ -440,6 +443,28 @@ static void diff_pmu_cycle(void *dst, void *src)
 	dst_cycle->instrs -= src_cycle->instrs;
 }
 
+/* above functions should follow the name convention to use below macro */
+#define TR_ID(_evt)  TRIGGER_READ_##_evt, EVENT_ID_##_evt, EVENT_ID_##_evt##2
+#define TR_DS(_evt)  sizeof(struct uftrace_##_evt)
+#define TR_FN(_evt)  save_##_evt, diff_##_evt
+
+static struct read_event_data {
+	enum trigger_read_type	type;
+	enum uftrace_event_id	id;
+	enum uftrace_event_id	id2;
+	size_t			size;
+	int (*save)(void *buf);
+	void (*diff)(void *dst, void *src);
+} read_events[] = {
+	{ TR_ID(PROC_STATM), TR_DS(proc_statm), TR_FN(proc_statm) },
+	{ TR_ID(PAGE_FAULT), TR_DS(page_fault), TR_FN(page_fault) },
+	{ TR_ID(PMU_CYCLE),  TR_DS(pmu_cycle),  TR_FN(pmu_cycle)  },
+};
+
+#undef TR_ID
+#undef TR_DS
+#undef TR_FN
+
 void save_trigger_read(struct mcount_thread_data *mtdp,
 		       struct mcount_ret_stack *rstack,
 		       enum trigger_read_type type, bool read2)
@@ -447,16 +472,24 @@ void save_trigger_read(struct mcount_thread_data *mtdp,
 	void *ptr = get_argbuf(mtdp, rstack) + rstack->event_idx;
 	struct mcount_event *event;
 	unsigned short evsize;
+	size_t i;
 
-	if (type & TRIGGER_READ_PROC_STATM) {
-		evsize = EVTBUF_HDR + sizeof(struct uftrace_proc_statm);
+	for (i = 0; i < ARRAY_SIZE(read_events); i++) {
+		struct read_event_data *red = &read_events[i];
+
+		if (!(type & red->type))
+			continue;
+
+		evsize = EVTBUF_HDR + red->size;
 		event = ptr - evsize;
 
-		event->id    = EVENT_ID_PROC_STATM;
+		event->id    = red->id;
 		event->time  = rstack->end_time ?: rstack->start_time;
-		event->dsize = sizeof(struct uftrace_proc_statm);
+		event->dsize = red->size;
 		event->idx   = mtdp->idx;
-		save_proc_statm(event->data);
+
+		if (red->save(event->data) < 0)
+			continue;
 
 		if (read2) {
 			struct mcount_event *old_event = NULL;
@@ -469,70 +502,8 @@ void save_trigger_read(struct mcount_thread_data *mtdp,
 			}
 
 			if (old_event) {
-				event->id = EVENT_ID_PROC_STATM2;
-				diff_proc_statm(event->data, old_event->data);
-			}
-		}
-
-		ptr = event;
-
-		rstack->nr_events++;
-		rstack->event_idx -= evsize;
-	}
-	if (type & TRIGGER_READ_PAGE_FAULT) {
-		evsize = EVTBUF_HDR + sizeof(struct uftrace_page_fault);
-		event = ptr - evsize;
-
-		event->id    = EVENT_ID_PAGE_FAULT;
-		event->time  = rstack->end_time ?: rstack->start_time;
-		event->dsize = sizeof(struct uftrace_page_fault);
-		event->idx   = mtdp->idx;
-		save_page_fault(event->data);
-
-		if (read2) {
-			struct mcount_event *old_event = NULL;
-			unsigned idx;
-
-			for (idx = 0; idx < rstack->nr_events; idx++) {
-				old_event = get_event_pointer(ptr, idx);
-				if (old_event->id == event->id)
-					break;
-			}
-
-			if (old_event) {
-				event->id = EVENT_ID_PAGE_FAULT2;
-				diff_page_fault(event->data, old_event->data);
-			}
-		}
-
-		ptr = event;
-
-		rstack->nr_events++;
-		rstack->event_idx -= evsize;
-	}
-	if (type & TRIGGER_READ_PMU_CYCLE) {
-		evsize = EVTBUF_HDR + sizeof(struct uftrace_pmu_cycle);
-		event = ptr - evsize;
-
-		event->id    = EVENT_ID_PMU_CYCLE;
-		event->time  = rstack->end_time ?: rstack->start_time;
-		event->dsize = sizeof(struct uftrace_pmu_cycle);
-		event->idx   = mtdp->idx;
-		save_pmu_cycle(event->data);
-
-		if (read2) {
-			struct mcount_event *old_event = NULL;
-			unsigned idx;
-
-			for (idx = 0; idx < rstack->nr_events; idx++) {
-				old_event = get_event_pointer(ptr, idx);
-				if (old_event->id == event->id)
-					break;
-			}
-
-			if (old_event) {
-				event->id = EVENT_ID_PMU_CYCLE2;
-				diff_pmu_cycle(event->data, old_event->data);
+				event->id = red->id2;
+				red->diff(event->data, old_event->data);
 			}
 		}
 
