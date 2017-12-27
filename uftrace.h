@@ -500,6 +500,8 @@ enum uftrace_event_id {
 	EVENT_ID_PAGE_FAULT2,
 	EVENT_ID_PMU_CYCLE,
 	EVENT_ID_PMU_CYCLE2,
+	EVENT_ID_PMU_CACHE,
+	EVENT_ID_PMU_CACHE2,
 
 	/* supported perf events */
 	EVENT_ID_PERF		= 200000U,
