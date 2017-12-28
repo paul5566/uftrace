@@ -1637,6 +1637,37 @@ size_t count_dynsym(struct symtabs *symtabs)
 	return dsymtab->nr_sym;
 }
 
+struct uftrace_mmap * find_map(struct symtabs *symtabs, uint64_t addr)
+{
+	struct uftrace_mmap *maps;
+
+	maps = symtabs->maps;
+	while (maps) {
+		if (maps->start <= addr && addr < maps->end)
+			return maps;
+
+		maps = maps->next;
+	}
+	return NULL;
+}
+
+struct uftrace_mmap * find_symbol_map(struct symtabs *symtabs, char *name)
+{
+	struct uftrace_mmap *maps;
+
+	if (find_symname(&symtabs->symtab, name))
+		return MAP_MAIN;
+
+	maps = symtabs->maps;
+	while (maps) {
+		if (find_symname(&maps->symtab, name))
+			return maps;
+
+		maps = maps->next;
+	}
+	return NULL;
+}
+
 struct sym * find_symtabs(struct symtabs *symtabs, uint64_t addr)
 {
 	struct symtab *stab = &symtabs->symtab;
@@ -1667,14 +1698,7 @@ struct sym * find_symtabs(struct symtabs *symtabs, uint64_t addr)
 	if (sym)
 		return sym;
 
-	maps = symtabs->maps;
-	while (maps) {
-		if (maps->start <= addr && addr < maps->end)
-			break;
-
-		maps = maps->next;
-	}
-
+	maps = find_map(symtabs, addr);
 	if (maps) {
 		if (maps->symtab.nr_sym == 0) {
 			bool found = false;
