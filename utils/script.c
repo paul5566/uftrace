@@ -62,8 +62,7 @@ void script_add_filter(char *func, enum uftrace_pattern_type ptype)
 	init_filter_pattern(ptype, &item->patt, func);
 
 	pr_dbg2("add script filter: %s (%s)\n", func,
-		item->patt.type == PATT_REGEX ? "regex" :
-		item->patt.type == PATT_GLOB ? "glob" : "simple");
+		get_filter_pattern(item->patt.type));
 
 	list_add_tail(&item->list, &filters);
 }
