@@ -20,12 +20,7 @@
 #define SDT_NAME  "stapsdt"
 #define SDT_TYPE  3
 
-struct event_spec {
-	struct list_head list;
-	char *provider;
-	char *event;
-};
-
+/* systemtap SDT data structure */
 struct stapsdt {
 	unsigned long probe_addr;
 	unsigned long link_addr;
@@ -33,7 +28,17 @@ struct stapsdt {
 	char vea[];  /* vendor + event + arguments */
 };
 
+/* user-given event specifier (may contains patterns) */
+struct event_spec {
+	struct list_head list;
+	char *provider;
+	char *event;
+};
+
+/* list of event spec */
 static LIST_HEAD(events);
+
+/* event id which is allocated dynamically */
 static unsigned event_id = EVENT_ID_USER;
 
 __weak int mcount_arch_enable_event(struct mcount_event_info *mei)
