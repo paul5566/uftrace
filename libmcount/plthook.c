@@ -765,9 +765,6 @@ unsigned long plthook_entry(unsigned long *ret_addr, unsigned long child_idx,
 		goto out;
 	}
 
-	if (unlikely(mcount_should_stop()))
-		goto out;
-
 	mtdp = get_thread_data();
 	if (unlikely(check_thread_data(mtdp))) {
 		mtdp = mcount_prepare();
@@ -775,10 +772,8 @@ unsigned long plthook_entry(unsigned long *ret_addr, unsigned long child_idx,
 			goto out;
 	}
 	else {
-		if (unlikely(mcount_recursion(mtdp)))
+		if (!mcount_guard_recursion(mtdp))
 			goto out;
-
-		mcount_guard_recursion(mtdp);
 	}
 
 	recursion = false;
