@@ -55,11 +55,21 @@ END(plt_hooker)
 
 ENTRY(plthook_return)
 	push {r0-r3,lr,pc}
+#ifdef HAVE_ARM_HARDFP
+	vpush d0
 
 	/* set the first argument of plthook_exit as a pointer return values */
+	add r0, sp, #8
+#else
+	/* set the first argument of plthook_exit as a pointer return values */
 	mov r0, sp
+#endif
 
 	bl plthook_exit
+
+#ifdef HAVE_ARM_HARDFP
+	vpop d0
+#endif
 	str r0, [sp, #20]
 	pop {r0-r3,lr,pc}
 END(plthook_return)

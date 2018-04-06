@@ -62,13 +62,23 @@ END(__gnu_mcount_nc)
 
 
 ENTRY(mcount_return)
-	push 	{r0-r3, lr}
+	push 	{r0-r1, lr}
+#ifdef HAVE_ARM_HARDFP
+	vpush	d0
 
 	/* set the first argument of mcount_exit as pointer to return values */
+	add	r0, sp, #8
+#else
+	/* set the first argument of mcount_exit as pointer to return values */
 	mov	r0, sp
+#endif
 
 	bl 	mcount_exit
 	mov 	ip, r0
-	pop 	{r0-r3, lr}
+
+#if HAVE_ARM_HARDFP
+	vpop	d0
+#endif
+	pop 	{r0-r1, lr}
 	bx	ip
 END(mcount_return)
