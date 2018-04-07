@@ -75,14 +75,14 @@ END(plt_hooker)
 
 ENTRY(plthook_return)
 	stp	x8, x18, [sp, #-16]!
-	save_args
+	stp	x0, d0, [sp, #-16]!
 
 	mov	x0, sp
 	bl	plthook_exit
 
 	mov	x16, x0
 
-	restore_args
+	ldp	x0, d0, [sp], #16
 	ldp	x8, x18, [sp], #16
 
 	br	x16
